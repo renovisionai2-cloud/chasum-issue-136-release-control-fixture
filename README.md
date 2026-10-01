@@ -103,3 +103,5 @@ The supplied assertions are explicit in the runbook:
 - Branch-specific rules leave unspecified branches enabled: [Vercel Git configuration](https://vercel.com/docs/project-configuration/git-configuration).
 - Environment approval gates secret access: [GitHub Environment protection](https://docs.github.com/en/actions/reference/workflows-and-actions/deployments-and-environments).
 - Fresh source deployment flags: [Vercel CLI deploy](https://vercel.com/docs/cli/deploy).
+
+<!-- disposable baseline trigger: 2026-10-01 -->
