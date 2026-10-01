@@ -4,7 +4,7 @@ export default function Home() {
       <p>CHASUM · ISSUE 136</p>
       <h1>Disposable release-control fixture</h1>
       <p>This synthetic app supports Preview, Production blocking, and exact-commit release proofs.</p>
-      <p>Feature marker: baseline</p>
+      <p>Feature marker: deployment-policy-preview-proof</p>
       <a href="/api/identity">Read this deployment’s identity</a>
     </main>
   );
