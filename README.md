@@ -105,3 +105,5 @@ The supplied assertions are explicit in the runbook:
 - Fresh source deployment flags: [Vercel CLI deploy](https://vercel.com/docs/cli/deploy).
 
 <!-- disposable baseline trigger: 2026-10-01 -->
+
+<!-- fixture project framework preset corrected to Next.js -->
