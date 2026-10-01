@@ -39,7 +39,8 @@ jobs:
           import { readFileSync, writeFileSync } from 'node:fs';
           const path = 'vercel.json';
           const value = JSON.parse(readFileSync(path, 'utf8'));
-          writeFileSync(path, `${JSON.stringify(value, null, 4)}\n`);
+          const indent = process.env.PROOF_ID.endsWith('-compact') ? 2 : 4;
+          writeFileSync(path, `${JSON.stringify(value, null, indent)}\n`);
           NODE
 
           node scripts/validate-vercel-config.mjs vercel.json
