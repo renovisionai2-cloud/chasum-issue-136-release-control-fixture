@@ -1,0 +1,11 @@
+node_modules/
+.next/
+*.tsbuildinfo
+dist/
+.vercel/
+.env
+.env.*
+*.log
+.DS_Store
+coverage/
+proof-evidence/

@@ -1,0 +1,168 @@
+name: Release production
+
+on:
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: Approved, exact 40-character commit SHA on main (ancestors allowed for rollback)
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-release
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  preflight:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      sha: ${{ steps.guard.outputs.sha }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+      - name: Fetch current main and validate candidate without release credentials
+        id: guard
+        env:
+          REQUESTED_SHA: ${{ inputs.sha }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          auth="$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)"
+          echo "::add-mask::$auth"
+          git -c "http.https://github.com/.extraheader=AUTHORIZATION: basic $auth" \
+            fetch --no-tags origin +refs/heads/main:refs/remotes/origin/main
+          sha="$(node scripts/assert-release-sha.mjs "$REQUESTED_SHA")"
+          printf 'sha=%s\n' "$sha" >> "$GITHUB_OUTPUT"
+
+  release:
+    needs: preflight
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # REQUIRED external setup: reviewers, prevent self-review, main-only branch
+    # policy, disable admin bypass; secrets stored ONLY in this Environment.
+    environment: production
+    env:
+      NEXT_TELEMETRY_DISABLED: '1'
+    steps:
+      - name: Check out the trusted workflow revision separately from release source
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ github.sha }}
+          path: control
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+      - name: Refresh approval and ancestry after Environment approval
+        working-directory: control
+        env:
+          RELEASE_SHA: ${{ needs.preflight.outputs.sha }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          auth="$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)"
+          echo "::add-mask::$auth"
+          git -c "http.https://github.com/.extraheader=AUTHORIZATION: basic $auth" \
+            fetch --no-tags origin +refs/heads/main:refs/remotes/origin/main
+          test "$(node scripts/assert-release-sha.mjs "$RELEASE_SHA")" = "$RELEASE_SHA"
+
+      - name: Check out only the approved immutable release commit
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ needs.preflight.outputs.sha }}
+          path: source
+          persist-credentials: false
+      - name: Validate the exact candidate with trusted validators
+        env:
+          RELEASE_SHA: ${{ needs.preflight.outputs.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git -C source rev-parse HEAD)" = "$RELEASE_SHA"
+          node control/scripts/validate-vercel-config.mjs source/vercel.json
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+        working-directory: source
+      - run: npm test
+        working-directory: source
+      - run: npm run build
+        working-directory: source
+      - name: Install pinned deployment CLI without release credentials
+        run: npm install --prefix "$RUNNER_TEMP/fixture-vercel-cli" --no-save --ignore-scripts --no-audit --no-fund vercel@59.1.4
+
+      - name: Export a clean tree of exactly the validated commit
+        env:
+          RELEASE_SHA: ${{ needs.preflight.outputs.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git -C source rev-parse HEAD)" = "$RELEASE_SHA"
+          test -z "$(git -C source status --porcelain --untracked-files=no)"
+          mkdir deploy-source
+          git --no-replace-objects -C control archive "$RELEASE_SHA" | tar -x -C deploy-source
+
+      - name: Recheck current policy immediately before the release
+        working-directory: control
+        env:
+          RELEASE_SHA: ${{ needs.preflight.outputs.sha }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          auth="$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)"
+          echo "::add-mask::$auth"
+          git -c "http.https://github.com/.extraheader=AUTHORIZATION: basic $auth" \
+            fetch --no-tags origin +refs/heads/main:refs/remotes/origin/main
+          test "$(node scripts/assert-release-sha.mjs "$RELEASE_SHA")" = "$RELEASE_SHA"
+          printf 'Release SHA: %s\nPolicy commit: %s\n' "$RELEASE_SHA" "$(git rev-parse refs/remotes/origin/main)" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Create a fresh Production deployment of exactly the approved source
+        id: deploy
+        working-directory: deploy-source
+        env:
+          RELEASE_SHA: ${{ needs.preflight.outputs.sha }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        run: |
+          set -euo pipefail
+          : "${VERCEL_TOKEN:?Missing production Environment secret}"
+          : "${VERCEL_ORG_ID:?Missing production Environment secret}"
+          : "${VERCEL_PROJECT_ID:?Missing production Environment secret}"
+          # Link to the existing disposable project; never infer/create a project.
+          mkdir -p .vercel
+          node --input-type=module -e 'import {writeFileSync} from "node:fs"; writeFileSync(".vercel/project.json", JSON.stringify({orgId:process.env.VERCEL_ORG_ID,projectId:process.env.VERCEL_PROJECT_ID}));'
+          url="$("$RUNNER_TEMP/fixture-vercel-cli/node_modules/.bin/vercel" deploy --prod --force --yes \
+            --token="$VERCEL_TOKEN" \
+            --meta "githubCommitSha=$RELEASE_SHA" \
+            --meta "githubCommitRef=main" \
+            --meta "fixtureReleaseRun=$GITHUB_RUN_ID" \
+            --env "VERCEL_GIT_COMMIT_SHA=$RELEASE_SHA" \
+            --env 'VERCEL_GIT_COMMIT_REF=main' \
+            --env 'FIXTURE_ENV_NAME=fixture-production')"
+          printf 'url=%s\n' "$url" >> "$GITHUB_OUTPUT"
+          printf 'Deployment URL: %s\n' "$url" >> "$GITHUB_STEP_SUMMARY"
+      - name: Verify the resulting deployment identity without release credentials
+        env:
+          DEPLOYMENT_URL: ${{ steps.deploy.outputs.url }}
+          RELEASE_SHA: ${{ needs.preflight.outputs.sha }}
+        run: |
+          set -euo pipefail
+          # Disposable fixture must allow public identity GETs (no bypass secret).
+          curl --fail --silent --show-error --max-time 30 --proto '=https' \
+            "$DEPLOYMENT_URL/api/identity" > "$RUNNER_TEMP/fixture-identity.json"
+          node control/scripts/verify-identity.mjs "$RUNNER_TEMP/fixture-identity.json" \
+            --sha "$RELEASE_SHA" --env production --fixture-env fixture-production

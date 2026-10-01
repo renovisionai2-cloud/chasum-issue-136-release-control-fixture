@@ -1,0 +1,30 @@
+{
+  "name": "chasum-release-control-fixture",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Disposable, secret-free release-control proof fixture; not Chasum application code.",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build --webpack",
+    "start": "next start",
+    "test": "node --test",
+    "validate:config": "node scripts/validate-vercel-config.mjs && node scripts/validate-vercel-config.mjs fixtures/vercel-main-disabled.json",
+    "release:guard": "node scripts/assert-release-sha.mjs",
+    "identity:verify": "node scripts/verify-identity.mjs"
+  },
+  "dependencies": {
+    "next": "16.3.8",
+    "react": "19.2.4",
+    "react-dom": "19.2.4"
+  },
+  "devDependencies": {
+    "@types/node": "25.6.2",
+    "@types/react": "19.2.17",
+    "@types/react-dom": "19.2.3",
+    "typescript": "5.9.3"
+  }
+}
