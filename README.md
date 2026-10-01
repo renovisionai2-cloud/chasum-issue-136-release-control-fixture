@@ -109,3 +109,5 @@ The supplied assertions are explicit in the runbook:
 <!-- fixture project framework preset corrected to Next.js -->
 
 P3 docs-only policy proof marker: 2026-10-01
+
+P3c combined A+F docs-only proof marker: 2026-10-01T19:05Z
