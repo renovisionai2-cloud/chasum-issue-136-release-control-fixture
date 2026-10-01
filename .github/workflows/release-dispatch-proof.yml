@@ -1,0 +1,34 @@
+name: Release dispatch proof
+
+'on':
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: Exact 40-character commit SHA to request for release
+        required: true
+        type: string
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Validate SHA and request release dispatch
+        shell: bash
+        env:
+          SHA: ${{ inputs.sha }}
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          if [[ ! "$SHA" =~ ^[0-9a-fA-F]{40}$ ]]; then
+            echo "SHA must be exactly 40 hexadecimal characters." >&2
+            exit 1
+          fi
+
+          gh workflow run release-production.yml --ref main -f sha="$SHA"
+          printf 'Requested SHA: %s\nRelease dispatch requested.\n' "$SHA" >> "$GITHUB_STEP_SUMMARY"

@@ -1,4 +1,15 @@
 {
   "version": 1,
-  "candidates": []
+  "candidates": [
+    {
+      "sha": "face661257bad7bd3bc8d2b920beccf9c93d3be7",
+      "status": "approved",
+      "expiresAt": "2026-10-02T04:00:00Z"
+    },
+    {
+      "sha": "04766b35b4f114e2b37c2aa078a8ccc92670bff9",
+      "status": "approved",
+      "expiresAt": "2026-10-02T04:00:00Z"
+    }
+  ]
 }
