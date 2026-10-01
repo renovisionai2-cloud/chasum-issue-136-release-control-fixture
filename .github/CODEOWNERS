@@ -1,0 +1,8 @@
+/.github/CODEOWNERS @renovisionai2-cloud
+/.github/workflows/** @renovisionai2-cloud
+/vercel.json @renovisionai2-cloud
+/release/** @renovisionai2-cloud
+/scripts/assert-release-sha.mjs @renovisionai2-cloud
+/scripts/release-guard.mjs @renovisionai2-cloud
+/scripts/validate-vercel-config.mjs @renovisionai2-cloud
+/scripts/verify-identity.mjs @renovisionai2-cloud
