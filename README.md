@@ -107,3 +107,5 @@ The supplied assertions are explicit in the runbook:
 <!-- disposable baseline trigger: 2026-10-01 -->
 
 <!-- fixture project framework preset corrected to Next.js -->
+
+P3 docs-only policy proof marker: 2026-10-01
